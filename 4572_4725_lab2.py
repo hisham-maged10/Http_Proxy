@@ -131,13 +131,21 @@ def entry_point(proxy_port_number):
     but feel free to modify the code
     inside it.
     """
+    #gets http_request_obj if all went well.
+    #http_request_obj = setup_sockets(proxy_port_number)
+    http_request_obj = HttpRequestInfo(None, None, None, None, None, None)
+    
+        
+    #if HttpRequestInfo object, Construct a TCP connection with host, send to it
 
-    setup_sockets(proxy_port_number)
-    print("*" * 50)
-    print("[entry_point] Implement me!")
-    print("*" * 50)
+
+    
     return None
 
+def setup_server_socket():
+
+
+    pass
 
 def setup_sockets(proxy_port_number):
     """
@@ -156,9 +164,17 @@ def setup_sockets(proxy_port_number):
     print("*" * 50)
     print("[setup_sockets] Implement me!")
     print("*" * 50)
-    return None
 
+    #operation_result = do_socket_logic()
+    #if error response, reject
+    #check = isinstance(operation_result,HttpErrorResponse)
+    #if check : 
+        #use socket made to send HttpErrorResponse byte array to client from proxy
+        #return None
+    #else:
+    #return Http_request_obj here (operation_result)
 
+#do socket logic of Proxy, client TCP Connection, basically get the HTTP request and call Http_request_pipeline here
 def do_socket_logic():
     """
     Example function for some helper logic, in case you
@@ -166,12 +182,13 @@ def do_socket_logic():
 
     Feel free to delete this function.
     """
-    pass
-
-
+    # return http_request_pipeline output here
+    
+#Http's Highlevel method, everything concerning Validation, parsing, sanitizing is put here, returns HTTPRequestInfo in the end to be used to send TCP to needed website
+#Returns HTTPErrorResponse object if not valid using validity local variable
 def http_request_pipeline(source_addr, http_raw_data):
     """
-    HTTP request processing pipeline.
+#Returns HTTPErrorResponse object if not valid using validity local variable
 
     - Validates the given HTTP request and returns
       an error if an invalid request was given.
@@ -196,7 +213,7 @@ def http_request_pipeline(source_addr, http_raw_data):
     print("*" * 50)
     return None
 
-
+#parses the contents of an http request, and returns an HTTP Request Object
 def parse_http_request(source_addr, http_raw_data):
     """
     This function parses a "valid" HTTP request into an HttpRequestInfo
@@ -209,7 +226,7 @@ def parse_http_request(source_addr, http_raw_data):
     ret = HttpRequestInfo(None, None, None, None, None, None)
     return ret
 
-
+#Checks the http request if it is a valid request
 def check_http_request_validity(http_raw_data) -> HttpRequestState:
     """
     Checks if an HTTP request is valid
@@ -223,7 +240,7 @@ def check_http_request_validity(http_raw_data) -> HttpRequestState:
     # return HttpRequestState.GOOD (for example)
     return HttpRequestState.PLACEHOLDER
 
-
+#Sanitizing, making the HTTP request of the correct format, before sending to server
 def sanitize_http_request(request_info: HttpRequestInfo):
     """
     Puts an HTTP request on the sanitized (standard) form
@@ -243,7 +260,7 @@ def sanitize_http_request(request_info: HttpRequestInfo):
 # Leave the code below as is.
 #######################################
 
-
+#Helper method
 def get_arg(param_index, default=None):
     """
         Gets a command line argument by index (note: index starts from 1)
@@ -263,7 +280,7 @@ def get_arg(param_index, default=None):
                 f"[FATAL] The comand-line argument #[{param_index}] is missing")
             exit(-1)    # Program execution failed.
 
-
+#Checks file name for testing compatability
 def check_file_name():
     """
     Checks if this file has a valid name for *submission*
@@ -280,7 +297,7 @@ def check_file_name():
     else:
         print(f"[LOG] File name is correct.")
 
-
+# Not to be changed, Entry point of Program
 def main():
     """
     Please leave the code in this function as is.
