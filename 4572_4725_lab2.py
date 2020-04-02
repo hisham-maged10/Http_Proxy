@@ -1,9 +1,9 @@
-# Don't forget to change this file's name before submission.
 import sys
 import os
 import enum
+import socket
 
-
+#done
 class HttpRequestInfo(object):
     """
     Represents a HTTP request information
@@ -67,10 +67,12 @@ class HttpRequestInfo(object):
         debugging and testing.
         """
 
-        print("*" * 50)
-        print("[to_http_string] Implement me!")
-        print("*" * 50)
-        return None
+        http_string = self.method + " " + self.requested_path + " HTTP/1.0\r\n"
+        for i in range(len(self.headers)):
+            http_string += self.headers[i][0] +": " + self.headers[i][1] +"\r\n"
+        http_string += "\r\n"
+
+        return http_string
 
     def to_byte_array(self, http_string):
         """
@@ -86,7 +88,7 @@ class HttpRequestInfo(object):
         stringified = [": ".join([k, v]) for (k, v) in self.headers]
         print("Headers:\n", "\n".join(stringified))
 
-
+#done
 class HttpErrorResponse(object):
     """
     Represents a proxy-error-response.
@@ -98,7 +100,8 @@ class HttpErrorResponse(object):
 
     def to_http_string(self):
         """ Same as above """
-        pass
+        http_string = str(self.code) + " " + self.message + "\r\n"
+        return http_string
 
     def to_byte_array(self, http_string):
         """
@@ -109,7 +112,7 @@ class HttpErrorResponse(object):
     def display(self):
         print(self.to_http_string())
 
-
+#done
 class HttpRequestState(enum.Enum):
     """
     The values here have nothing to do with
@@ -122,7 +125,7 @@ class HttpRequestState(enum.Enum):
     GOOD = 2
     PLACEHOLDER = -1
 
-
+#done
 def entry_point(proxy_port_number):
     """
     Entry point, start your code here.
@@ -131,22 +134,39 @@ def entry_point(proxy_port_number):
     but feel free to modify the code
     inside it.
     """
-    #gets http_request_obj if all went well.
-    #http_request_obj = setup_sockets(proxy_port_number)
-    http_request_obj = HttpRequestInfo(None, None, None, None, None, None)
-    
-        
-    #if HttpRequestInfo object, Construct a TCP connection with host, send to it
-
-
-    
-    return None
-
-def setup_server_socket():
-
+    setup_sockets(proxy_port_number)
 
     pass
 
+#done
+def setup_server_socket(http_request_obj : HttpRequestInfo, client_socket : socket = None):
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    required_host = http_request_obj.requested_host
+    required_port = http_request_obj.requested_port
+    http_string = http_request_obj.to_http_string()
+    request_byte_arr = http_request_obj.to_byte_array(http_string)
+    response = do_server_socket_logic(server_socket,required_host,required_port,request_byte_arr,client_socket)
+    
+    return response
+
+#done
+def do_server_socket_logic(server_socket : socket, required_host: str ,required_port : int, request_byte_arr, client_socket : socket):
+    print(f"required_host: {required_host}")
+    print(f"required_port: {required_port}")
+    server_socket.connect((required_host,required_port))
+    server_socket.send(request_byte_arr)
+    response = bytearray()
+    while True:
+        http_response = server_socket.recv(4096)
+        response += http_response
+        if(len(http_response) == 0):
+            break
+    
+    server_socket.close()
+
+    return response
+
+#done
 def setup_sockets(proxy_port_number):
     """
     Socket logic MUST NOT be written in the any
@@ -157,33 +177,49 @@ def setup_sockets(proxy_port_number):
     Feel free to delete this function.
     """
     print("Starting HTTP proxy on port:", proxy_port_number)
+    
+    proxy_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    do_socket_logic(proxy_socket,proxy_port_number)
+   
+    pass
 
-    # when calling socket.listen() pass a number
-    # that's larger than 10 to avoid rejecting
-    # connections automatically.
-    print("*" * 50)
-    print("[setup_sockets] Implement me!")
-    print("*" * 50)
-
-    #operation_result = do_socket_logic()
-    #if error response, reject
-    #check = isinstance(operation_result,HttpErrorResponse)
-    #if check : 
-        #use socket made to send HttpErrorResponse byte array to client from proxy
-        #return None
-    #else:
-    #return Http_request_obj here (operation_result)
-
-#do socket logic of Proxy, client TCP Connection, basically get the HTTP request and call Http_request_pipeline here
-def do_socket_logic():
+#do socket logic of Proxy, client TCP Connection, basically get the HTTP request and call Http_request_pipeline here and stay on the loop
+def do_socket_logic(proxy_socket: socket,proxy_port_number):
     """
     Example function for some helper logic, in case you
     want to be tidy and avoid stuffing the main function.
 
     Feel free to delete this function.
     """
-    # return http_request_pipeline output here
-    
+
+    proxy_socket.bind(("127.0.0.1",int(proxy_port_number)))
+    proxy_socket.listen(10)
+    cache = {}
+    while True:
+        client_socket, address =  proxy_socket.accept()
+        #get source_addr, http raw data from telnet's input
+        #do the request pipeine then check for error 
+        #http = http_request_pipeline()
+        #check = isinstance(http,HttpErrorResponse)
+
+        #if check :
+            #error_string = http.to_http_string()
+            #client_socket.send(http.to_byte_array(error_string))
+            #client_socket.close()
+
+        #remove next line when you implement your part and uncomment the previous lines
+        http = HttpRequestInfo(("127.0.0.1", 18888), "GET", "www.apache.org", 80, "/", [["Host", "www.google.com"], ["Accept", "application/json"]])
+        response = cache[http.requested_host+":"+str(http.requested_port)+http.requested_path] if http.requested_host+":"+str(http.requested_port)+http.requested_path in cache else setup_server_socket(http,client_socket)
+        cache[http.requested_host+":"+str(http.requested_port)+http.requested_path] = response
+        client_socket.send(response)
+        client_socket.close()
+        
+        
+    proxy_socket.close()
+
+    pass
+
+
 #Http's Highlevel method, everything concerning Validation, parsing, sanitizing is put here, returns HTTPRequestInfo in the end to be used to send TCP to needed website
 #Returns HTTPErrorResponse object if not valid using validity local variable
 def http_request_pipeline(source_addr, http_raw_data):
@@ -204,13 +240,19 @@ def http_request_pipeline(source_addr, http_raw_data):
     """
     # Parse HTTP request
     validity = check_http_request_validity(http_raw_data)
-    # Return error if needed, then:
+
+    # if validity != HttpErrorResponse.GOOD
+        # consturct HttpErrorResponse and return it
+    # else
     # parse_http_request()
     # sanitize_http_request()
     # Validate, sanitize, return Http object.
+
     print("*" * 50)
     print("[http_request_pipeline] Implement me!")
     print("*" * 50)
+
+    #return HttpRequestInfo obj
     return None
 
 #parses the contents of an http request, and returns an HTTP Request Object
