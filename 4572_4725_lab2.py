@@ -207,6 +207,13 @@ def do_socket_logic(proxy_socket: socket,proxy_port_number):
 # add your logic here, this is called during threading
 def handle_client(client_socket,cache):
     #get source_addr, http raw data from telnet's input
+    telnet_input = bytearray()
+    while True:
+        data = client_socket.recv(4096)
+        if(data.decode("utf-8") == '\r\n'):
+            break
+        telnet_input += data
+    print(telnet_input)
     #do the request pipeine then check for error 
     #http = http_request_pipeline()
     #check = isinstance(http,HttpErrorResponse)
