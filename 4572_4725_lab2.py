@@ -2,6 +2,7 @@ import sys
 import os
 import enum
 import socket
+from _thread import *
 
 #done
 class HttpRequestInfo(object):
@@ -197,29 +198,32 @@ def do_socket_logic(proxy_socket: socket,proxy_port_number):
     cache = {}
     while True:
         client_socket, address =  proxy_socket.accept()
-        #get source_addr, http raw data from telnet's input
-        #do the request pipeine then check for error 
-        #http = http_request_pipeline()
-        #check = isinstance(http,HttpErrorResponse)
-
-        #if check :
-            #error_string = http.to_http_string()
-            #client_socket.send(http.to_byte_array(error_string))
-            #client_socket.close()
-
-        #remove next line when you implement your part and uncomment the previous lines
-        http = HttpRequestInfo(("127.0.0.1", 18888), "GET", "www.apache.org", 80, "/", [["Host", "www.google.com"], ["Accept", "application/json"]])
-        response = cache[http.requested_host+":"+str(http.requested_port)+http.requested_path] if http.requested_host+":"+str(http.requested_port)+http.requested_path in cache else setup_server_socket(http,client_socket)
-        cache[http.requested_host+":"+str(http.requested_port)+http.requested_path] = response
-        client_socket.send(response)
-        client_socket.close()
-        
-        
+        print(f"Started conn with {address}")
+        start_new_thread(handle_client,(client_socket,cache))
     proxy_socket.close()
 
     pass
 
+# add your logic here, this is called during threading
+def handle_client(client_socket,cache):
+    #get source_addr, http raw data from telnet's input
+    #do the request pipeine then check for error 
+    #http = http_request_pipeline()
+    #check = isinstance(http,HttpErrorResponse)
 
+    #if check :
+        #error_string = http.to_http_string()
+        #client_socket.send(http.to_byte_array(error_string))
+        #client_socket.close()
+
+    #remove next line when you implement your part and uncomment the previous lines
+    http = HttpRequestInfo(("127.0.0.1", 18888), "GET", "www.apache.org", 80, "/", [["Host", "www.google.com"], ["Accept", "application/json"]])
+    response = cache[http.requested_host+":"+str(http.requested_port)+http.requested_path] if http.requested_host+":"+str(http.requested_port)+http.requested_path in cache else setup_server_socket(http,client_socket)
+    cache[http.requested_host+":"+str(http.requested_port)+http.requested_path] = response
+    client_socket.send(response)
+    client_socket.close()
+    print(f"Finished!")
+    pass
 #Http's Highlevel method, everything concerning Validation, parsing, sanitizing is put here, returns HTTPRequestInfo in the end to be used to send TCP to needed website
 #Returns HTTPErrorResponse object if not valid using validity local variable
 def http_request_pipeline(source_addr, http_raw_data):
