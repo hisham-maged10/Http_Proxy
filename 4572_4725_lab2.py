@@ -154,7 +154,7 @@ def setup_server_socket(http_request_obj : HttpRequestInfo, client_socket : sock
 def do_server_socket_logic(server_socket : socket, required_host: str ,required_port : int, request_byte_arr, client_socket : socket):
     print(f"required_host: {required_host}")
     print(f"required_port: {required_port}")
-    server_socket.connect((required_host,required_port))
+    server_socket.connect((required_host,int(required_port)))
     server_socket.send(request_byte_arr)
     response = bytearray()
     while True:
@@ -199,13 +199,13 @@ def do_socket_logic(proxy_socket: socket,proxy_port_number):
     while True:
         client_socket, address =  proxy_socket.accept()
         print(f"Started conn with {address}")
-        start_new_thread(handle_client,(client_socket,cache))
+        start_new_thread(handle_client,(client_socket,cache, address))
     proxy_socket.close()
 
     pass
 
 # add your logic here, this is called during threading
-def handle_client(client_socket,cache):
+def handle_client(client_socket,cache, address):
     #get source_addr, http raw data from telnet's input
     telnet_input = bytearray()
     while True:
@@ -215,16 +215,15 @@ def handle_client(client_socket,cache):
         telnet_input += data
     print(telnet_input)
     #do the request pipeine then check for error 
-    #http = http_request_pipeline()
-    #check = isinstance(http,HttpErrorResponse)
-
-    #if check :
-        #error_string = http.to_http_string()
-        #client_socket.send(http.to_byte_array(error_string))
-        #client_socket.close()
-
+    http = http_request_pipeline(address, telnet_input.decode('utf-8'))
+    check = isinstance(http,HttpErrorResponse)
+    if check :
+        error_string = http.to_http_string()
+        client_socket.send(http.to_byte_array(error_string))
+        client_socket.close()
+        pass
     #remove next line when you implement your part and uncomment the previous lines
-    http = HttpRequestInfo(("127.0.0.1", 18888), "GET", "www.apache.org", 80, "/", [["Host", "www.google.com"], ["Accept", "application/json"]])
+    # http = HttpRequestInfo(("127.0.0.1", 18888), "GET", "www.apache.org", 80, "/", [["Host", "www.google.com"], ["Accept", "application/json"]])
     response = cache[http.requested_host+":"+str(http.requested_port)+http.requested_path] if http.requested_host+":"+str(http.requested_port)+http.requested_path in cache else setup_server_socket(http,client_socket)
     cache[http.requested_host+":"+str(http.requested_port)+http.requested_path] = response
     client_socket.send(response)
@@ -250,21 +249,23 @@ def http_request_pipeline(source_addr, http_raw_data):
     free to change its content
     """
     # Parse HTTP request
+    print(f"Http raw data: {http_raw_data}")
+    print(f"source address(tuble): {source_addr}")
     validity = check_http_request_validity(http_raw_data)
-
-    # if validity != HttpErrorResponse.GOOD
-        # consturct HttpErrorResponse and return it
-    # else
-    # parse_http_request()
+    if(validity == HttpRequestState.NOT_SUPPORTED):
+        code = 500
+        message = "Not supported"
+        return HttpErrorResponse(code,message)
+    elif(validity == HttpRequestState.INVALID_INPUT):
+        code = 400
+        message = "Bad Request"
+        return HttpErrorResponse(code, message)
+    # Return error if needed, then:
+    httprequest =  parse_http_request(source_addr, http_raw_data)
     # sanitize_http_request()
     # Validate, sanitize, return Http object.
-
-    print("*" * 50)
-    print("[http_request_pipeline] Implement me!")
-    print("*" * 50)
-
-    #return HttpRequestInfo obj
-    return None
+   
+    return httprequest
 
 #parses the contents of an http request, and returns an HTTP Request Object
 def parse_http_request(source_addr, http_raw_data):
@@ -272,11 +273,50 @@ def parse_http_request(source_addr, http_raw_data):
     This function parses a "valid" HTTP request into an HttpRequestInfo
     object.
     """
-    print("*" * 50)
-    print("[parse_http_request] Implement me!")
-    print("*" * 50)
+    
     # Replace this line with the correct values.
-    ret = HttpRequestInfo(None, None, None, None, None, None)
+    listoflists = tokenization(http_raw_data)
+    method = listoflists[0]
+    method = method.upper()
+    url = listoflists[1]
+    url = url.lower()
+    httpversion = listoflists[2]
+    host = ""
+    path = ""
+    if(url.startswith('/')):
+        path = url
+        hostarray = listoflists[3]
+        host_and_port = hostarray[0][1]
+        host_and_port_array = host_and_port.split(':')
+        if(len(host_and_port_array) < 2):
+            host = host_and_port_array[0]
+            port = 80
+        else:
+            host = host_and_port_array[0]
+            port = host_and_port_array[1]
+    else:
+        hostarray =  url.split('://')
+        host_and_port = hostarray[1]
+        host_and_port_array = host_and_port.split(':')
+        if(len(host_and_port_array) < 2):
+            port = 80
+            host_and_path = host_and_port_array[0]
+        else:
+            port_path = host_and_port_array[1]
+            if(port_path.endswith('/')):
+                port = port_path.split('/')[0]
+                path = '/' + port_path.split('/')[1]
+            host_and_path = host_and_port_array[0]
+        host_and_path_array = host_and_path.split('/', 1)
+        host = host_and_path_array[0]
+        #port = '/' + host_and_path_array[1]
+        if(path != ""):
+            if(len(host_and_path_array) == 2):
+                path = "/" + host_and_path_array[1]
+            else:
+                path = "/"
+    header = listoflists[3]            
+    ret = HttpRequestInfo(source_addr, method, host, port, path, header)
     return ret
 
 #Checks the http request if it is a valid request
@@ -290,8 +330,83 @@ def check_http_request_validity(http_raw_data) -> HttpRequestState:
     print("*" * 50)
     print("[check_http_request_validity] Implement me!")
     print("*" * 50)
+    listoflists = tokenization(http_raw_data)
+    if(isinstance(listoflists,HttpRequestState)):#to check if the first element is only = 3
+        print("NOT IMPLEMENTED")
+        return HttpRequestState.INVALID_INPUT
+    try:
+        method = listoflists[0]
+        method = method.upper()
+        url = listoflists[1]
+        httpversion = listoflists[2]
+        print(f"METHOD: {method}  URL: {url}  HTTPVERSION: {httpversion}")
+        if(len(method) == 0):
+            print("NOT IMPLEMENTED 1")
+            return HttpRequestState.INVALID_INPUT
+        list_methods = {"GET", "HEAD", "POST", "PUT"}
+        if(method not in list_methods):
+            print("NOT IMPLEMENTED 2")
+            return HttpRequestState.INVALID_INPUT
+        if(len(url) == 0):
+            print("NOT IMPLEMENTED 3")
+            return HttpRequestState.INVALID_INPUT
+        if(url == '/'):
+            hostlist = listoflists[3]
+            print(f"VALUEEEEEEEEE: {hostlist[0]}")
+            if(len(hostlist[0][1]) == 0):
+                print("NOT IMPLEMENTED RELATIVE PATH")
+                return HttpRequestState.INVALID_INPUT
+        if(len(httpversion) == 0):
+            print("NOT IMPLEMENTED 4")
+            return HttpRequestState.INVALID_INPUT
+        if( (httpversion.split("/")[1] != '1.1') and (httpversion.split("/")[1] != '1.0')):
+            print(F"HTTP VERSIONNNNNNNNNNNNNN: {httpversion}")
+            print(httpversion.split("/")[1])
+            print("NOT IMPLEMENTED Http version")
+            return HttpRequestState.INVALID_INPUT
+        if(not httpversion.startswith("HTTP/")):
+            print("NOT IMPLEMENTED 5")
+            return HttpRequestState.INVALID_INPUT
+        if(method != "GET"):
+            print("NOT SUPPORTED")
+            return HttpRequestState.NOT_SUPPORTED
+        return HttpRequestState.GOOD
+    except Exception as e: 
+        print(e)
+        print("Error in catch")
+        return HttpRequestState.INVALID_INPUT
     # return HttpRequestState.GOOD (for example)
-    return HttpRequestState.PLACEHOLDER
+    # return HttpRequestState.PLACEHOLDER
+
+def tokenization(http_raw_data):
+    print("http raw data {http_raw_data}")
+    listoflists = []
+    http_raw_data = http_raw_data.rstrip()
+    line_elements = http_raw_data.split("\r\n")
+    line_elements[0] = line_elements[0].rstrip()
+    print(f"Line_elements: {line_elements}")
+    first_line = line_elements[0].split(" ")
+    if(len(first_line) != 3):
+        print("NOT IMPLEMENTED")
+        return HttpRequestState.INVALID_INPUT
+    for elem in first_line:
+        listoflists.append(elem)
+    listofheaders = []
+    for i in range (1, len(line_elements) ):
+        line_elements[i] = line_elements[i].rstrip()
+        if(":" not in line_elements[i]):
+            print("NOT IMPLEMENTED")
+            return HttpRequestState.INVALID_INPUT
+        header_line = line_elements[i].split(":", 1)
+        print(f"HEADEER LINE AFTER SPLIT: {header_line}")
+        if(len(header_line) == 2):
+            listofheaders.append([header_line[0].strip(), header_line[1].strip()])
+        else:
+            print("NOT IMPLEMENTED")
+            return HttpRequestState.INVALID_INPUT
+    listoflists.append(listofheaders)
+    print(f"List of Lists: {listoflists}")
+    return listoflists
 
 #Sanitizing, making the HTTP request of the correct format, before sending to server
 def sanitize_http_request(request_info: HttpRequestInfo):
@@ -304,9 +419,7 @@ def sanitize_http_request(request_info: HttpRequestInfo):
     returns:
     nothing, but modifies the input object
     """
-    print("*" * 50)
-    print("[sanitize_http_request] Implement me!")
-    print("*" * 50)
+  
 
 
 #######################################
